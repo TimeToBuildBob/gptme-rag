@@ -14,7 +14,7 @@ from chromadb.config import Settings
 
 from .document import Document
 from .document_processor import DocumentProcessor
-from ..embeddings import ModernBERTEmbedding
+from ..embeddings import ModernBERTEmbedding, GenericSentenceTransformerEmbedding
 
 
 class ChromaDBFilter(Filter):
@@ -82,7 +82,7 @@ class Indexer:
         chunk_overlap: int | None = None,
         enable_persist: bool = False,  # Default to False due to multi-threading issues
         scoring_weights: dict | None = None,
-        embedding_function: str = "modernbert",  # Options: "modernbert", "default"
+        embedding_function: str = "modernbert",  # Options: "modernbert", "minilm", "mpnet", "default"
         device: str = "cpu",
         force_recreate: bool = False,  # Force recreation of collection
     ):
@@ -111,6 +111,18 @@ class Indexer:
             if self.embedding_function.is_msmarco:
                 default_chunk_size = 512
                 default_chunk_overlap = 64
+        elif embedding_function == "minilm":
+            self.embedding_function = GenericSentenceTransformerEmbedding(
+                "all-MiniLM-L6-v2", device=device
+            )
+            default_chunk_size = 512
+            default_chunk_overlap = 64
+        elif embedding_function == "mpnet":
+            self.embedding_function = GenericSentenceTransformerEmbedding(
+                "all-mpnet-base-v2", device=device
+            )
+            default_chunk_size = 1000
+            default_chunk_overlap = 200
         else:
             self.embedding_function = None  # Use ChromaDB default
 
