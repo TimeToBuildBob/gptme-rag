@@ -24,20 +24,22 @@ class CacheKey:
     Attributes:
         query_text: Original search query (for debugging)
         query_hash: MD5 hash of normalized query
-        workspace_path: Which workspace being searched
-        workspace_only: Scope limitation flag
-        max_tokens: Result size limit
-        min_relevance: Quality threshold
+        paths_hash: Hash of paths list (None if not specified)
+        n_results: Number of results requested
+        where_hash: Hash of where clause dict (None if not specified)
+        group_chunks: Whether chunks are grouped by document
+        path_filters_hash: Hash of path filter patterns (None if not specified)
         embedding_model: Which embedding model used
         index_version: Index format/structure version
     """
 
     query_text: str
     query_hash: str
-    workspace_path: str
-    workspace_only: bool
-    max_tokens: int
-    min_relevance: float
+    paths_hash: str | None
+    n_results: int
+    where_hash: str | None
+    group_chunks: bool
+    path_filters_hash: str | None
     embedding_model: str
     index_version: str
 
@@ -46,10 +48,11 @@ class CacheKey:
         return hash(
             (
                 self.query_hash,
-                self.workspace_path,
-                self.workspace_only,
-                self.max_tokens,
-                self.min_relevance,
+                self.paths_hash,
+                self.n_results,
+                self.where_hash,
+                self.group_chunks,
+                self.path_filters_hash,
                 self.embedding_model,
                 self.index_version,
             )
@@ -59,10 +62,11 @@ class CacheKey:
     def from_search(
         cls,
         query: str,
-        workspace_path: str = ".",
-        workspace_only: bool = True,
-        max_tokens: int = 3000,
-        min_relevance: float = 0.0,
+        paths: list | None = None,
+        n_results: int = 5,
+        where: dict | None = None,
+        group_chunks: bool = True,
+        path_filters: tuple | None = None,
         embedding_model: str = "modernbert",
         index_version: str = "v1",
     ) -> "CacheKey":
@@ -70,10 +74,11 @@ class CacheKey:
 
         Args:
             query: Search query text
-            workspace_path: Path to workspace directory
-            workspace_only: Whether to limit search to workspace
-            max_tokens: Maximum tokens in results
-            min_relevance: Minimum relevance score threshold
+            paths: List of paths to search within
+            n_results: Maximum number of results to return
+            where: Additional where clauses for ChromaDB query
+            group_chunks: Whether to group chunks from the same document
+            path_filters: Glob patterns to filter documents by path
             embedding_model: Name of embedding model used
             index_version: Version of index format
 
@@ -84,13 +89,32 @@ class CacheKey:
         normalized = query.lower().strip()
         query_hash = hashlib.md5(normalized.encode()).hexdigest()
 
+        # Create hash for paths
+        paths_hash = None
+        if paths is not None:
+            paths_str = ",".join(sorted(str(p) for p in paths))
+            paths_hash = hashlib.md5(paths_str.encode()).hexdigest()
+
+        # Create hash for where clause
+        where_hash = None
+        if where is not None:
+            where_str = str(sorted(where.items()))
+            where_hash = hashlib.md5(where_str.encode()).hexdigest()
+
+        # Create hash for path_filters
+        path_filters_hash = None
+        if path_filters is not None:
+            filters_str = ",".join(sorted(path_filters))
+            path_filters_hash = hashlib.md5(filters_str.encode()).hexdigest()
+
         return cls(
             query_text=query,
             query_hash=query_hash,
-            workspace_path=workspace_path,
-            workspace_only=workspace_only,
-            max_tokens=max_tokens,
-            min_relevance=min_relevance,
+            paths_hash=paths_hash,
+            n_results=n_results,
+            where_hash=where_hash,
+            group_chunks=group_chunks,
+            path_filters_hash=path_filters_hash,
             embedding_model=embedding_model,
             index_version=index_version,
         )
@@ -101,8 +125,10 @@ class CacheEntry:
     """Cached search results with metadata.
 
     Attributes:
-        document_ids: List of file paths (memory-efficient)
-        relevance_scores: Match quality scores
+        document_contents: Full document text content
+        document_metadatas: Document metadata dicts
+        document_ids: Document IDs for tracking
+        distances: Embedding distance scores
         created_at: When entry was cached
         last_accessed: Last access time (for LRU)
         access_count: Number of times accessed
@@ -112,9 +138,11 @@ class CacheEntry:
         result_count: Number of results
     """
 
-    # Results (memory-efficient)
+    # Results (full data for cache hit)
+    document_contents: list[str]
+    document_metadatas: list[dict]
     document_ids: list[str]
-    relevance_scores: list[float]
+    distances: list[float]
 
     # Metadata
     created_at: datetime
