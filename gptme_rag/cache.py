@@ -189,7 +189,7 @@ class CacheEntry:
         # Rough estimate: IDs + scores + metadata
         return (
             sum(sys.getsizeof(doc_id) for doc_id in self.document_ids)
-            + sys.getsizeof(self.relevance_scores)
+            + sys.getsizeof(self.distances)
             + sys.getsizeof(self.created_at)
             + sys.getsizeof(self.last_accessed)
             + sys.getsizeof(self.workspace_mtime)

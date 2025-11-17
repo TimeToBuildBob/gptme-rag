@@ -13,12 +13,12 @@ class TestCacheKey:
         """Test basic cache key creation."""
         key = CacheKey.from_search(
             query="test query",
-            workspace_path="/home/user/project",
+            paths=None,
         )
 
         assert key.query_text == "test query"
-        assert key.workspace_path == "/home/user/project"
-        assert key.workspace_only is True
+        assert key.paths_hash is None
+        assert key.paths_hash is None
         assert key.embedding_model == "modernbert"
         assert len(key.query_hash) == 32  # MD5 hash length
 
@@ -33,8 +33,8 @@ class TestCacheKey:
 
     def test_different_configs_different_keys(self):
         """Test that different configurations produce different keys."""
-        key1 = CacheKey.from_search("query", workspace_path="/path1")
-        key2 = CacheKey.from_search("query", workspace_path="/path2")
+        key1 = CacheKey.from_search("query", paths=["/path1"])
+        key2 = CacheKey.from_search("query", paths=["/path2"])
 
         assert key1 != key2
         assert hash(key1) != hash(key2)
@@ -52,16 +52,6 @@ class TestCacheKey:
         cache_dict = {key1: "value"}
         assert cache_dict[key2] == "value"
 
-    def test_workspace_only_flag(self):
-        """Test workspace_only parameter."""
-        key1 = CacheKey.from_search("query", workspace_only=True)
-        key2 = CacheKey.from_search("query", workspace_only=False)
-
-        assert key1.workspace_only is True
-        assert key2.workspace_only is False
-        assert key1 != key2
-
-
 class TestCacheEntry:
     """Tests for CacheEntry class."""
 
@@ -69,8 +59,10 @@ class TestCacheEntry:
         """Test basic cache entry creation."""
         now = datetime.now()
         entry = CacheEntry(
+            document_contents=["content1", "content2"],
+            document_metadatas=[{}, {}],
             document_ids=["doc1.md", "doc2.md"],
-            relevance_scores=[0.9, 0.8],
+            distances=[0.9, 0.8],
             created_at=now,
             last_accessed=now,
             access_count=1,
@@ -81,15 +73,17 @@ class TestCacheEntry:
         )
 
         assert len(entry.document_ids) == 2
-        assert len(entry.relevance_scores) == 2
+        assert len(entry.distances) == 2
         assert entry.access_count == 1
         assert entry.result_count == 2
 
     def test_is_fresh_new_entry(self):
         """Test that new entries are fresh."""
         entry = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=1,
@@ -105,8 +99,10 @@ class TestCacheEntry:
         """Test that old entries are not fresh."""
         old_time = datetime.now() - timedelta(minutes=10)
         entry = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=old_time,
             last_accessed=old_time,
             access_count=1,
@@ -125,8 +121,10 @@ class TestCacheEntry:
 
         # Not hot: low access count
         entry_cold = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=now,
             last_accessed=now,
             access_count=2,
@@ -139,8 +137,10 @@ class TestCacheEntry:
 
         # Hot: high access count
         entry_hot = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=now,
             last_accessed=now,
             access_count=10,
@@ -154,8 +154,10 @@ class TestCacheEntry:
     def test_size_bytes(self):
         """Test memory size estimation."""
         entry = CacheEntry(
+            document_contents=["content1", "content2"],
+            document_metadatas=[{}, {}],
             document_ids=["doc1.md", "doc2.md", "doc3.md"],
-            relevance_scores=[0.9, 0.8, 0.7],
+            distances=[0.9, 0.8, 0.7],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=1,
@@ -180,8 +182,10 @@ class TestSmartRAGCache:
 
         key = CacheKey.from_search("test query")
         entry = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=0,
@@ -209,8 +213,10 @@ class TestSmartRAGCache:
         key = CacheKey.from_search("test query")
         old_time = datetime.now() - timedelta(seconds=2)
         entry = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=old_time,  # Created 2 seconds ago
             last_accessed=old_time,
             access_count=0,
@@ -246,8 +252,10 @@ class TestSmartRAGCache:
             keys.append(key)
 
             entry = CacheEntry(
+            document_contents=["content"] * 10,
+            document_metadatas=[{}] * 10,
                 document_ids=[f"doc{i}.md"] * 10,  # Make it take space
-                relevance_scores=[0.9] * 10,
+                distances=[0.9] * 10,
                 created_at=datetime.now(),
                 last_accessed=datetime.now(),
                 access_count=0,
@@ -273,8 +281,10 @@ class TestSmartRAGCache:
         # Add first entry
         key1 = CacheKey.from_search("query 1")
         entry1 = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"] * 20,
-            relevance_scores=[0.9] * 20,
+            distances=[0.9] * 20,
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=0,
@@ -288,8 +298,10 @@ class TestSmartRAGCache:
         # Add second entry
         key2 = CacheKey.from_search("query 2")
         entry2 = CacheEntry(
+            document_contents=["content"] * 20,
+            document_metadatas=[{}] * 20,
             document_ids=["doc2.md"] * 20,
-            relevance_scores=[0.8] * 20,
+            distances=[0.8] * 20,
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=0,
@@ -306,8 +318,10 @@ class TestSmartRAGCache:
         # Add third entry (should evict key2, not key1)
         key3 = CacheKey.from_search("query 3")
         entry3 = CacheEntry(
+            document_contents=["content"] * 20,
+            document_metadatas=[{}] * 20,
             document_ids=["doc3.md"] * 20,
-            relevance_scores=[0.7] * 20,
+            distances=[0.7] * 20,
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=0,
@@ -327,8 +341,10 @@ class TestSmartRAGCache:
 
         key = CacheKey.from_search("test")
         entry = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=0,
@@ -361,8 +377,10 @@ class TestSmartRAGCache:
         # Add entry
         key = CacheKey.from_search("test")
         entry = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=0,
@@ -390,8 +408,10 @@ class TestSmartRAGCache:
         # Add cold entry
         key_cold = CacheKey.from_search("cold query")
         entry_cold = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=2,  # Below threshold
@@ -405,8 +425,10 @@ class TestSmartRAGCache:
         # Add hot entry
         key_hot = CacheKey.from_search("hot query")
         entry_hot = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc2.md"],
-            relevance_scores=[0.8],
+            distances=[0.8],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=10,  # Above threshold
@@ -427,8 +449,10 @@ class TestSmartRAGCache:
 
         key = CacheKey.from_search("test")
         entry = CacheEntry(
+            document_contents=["content"],
+            document_metadatas=[{}],
             document_ids=["doc1.md"],
-            relevance_scores=[0.9],
+            distances=[0.9],
             created_at=datetime.now(),
             last_accessed=datetime.now(),
             access_count=0,
