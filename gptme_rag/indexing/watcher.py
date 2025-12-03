@@ -91,6 +91,9 @@ class IndexEventHandler(FileSystemEventHandler):
                 logger.warning(f"No documents indexed for {path}")
                 return
 
+            # Clear search cache to ensure fresh results for verification
+            self.indexer.cache.clear()
+
             # Verify the update
             logger.debug(f"Verifying update for {canonical_path}")
             results, _, _ = self.indexer.search(content[:100], n_results=1)
