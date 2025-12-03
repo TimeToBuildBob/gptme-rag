@@ -102,19 +102,15 @@ class IndexEventHandler(FileSystemEventHandler):
         """Handle file move events."""
         if not event.is_directory:
             logger.info(f"File moved: {event.src_path} -> {event.dest_path}")
-            src_path = Path(event.src_path).absolute()
-            dest_path = Path(event.dest_path).absolute()
+            src_path = Path(event.src_path).resolve()
+            dest_path = Path(event.dest_path).resolve()
 
             # Remove old file from index if it was being tracked
             if self._should_process(event.src_path):
                 logger.debug(f"Removing old path from index: {src_path}")
-                old_docs = self.indexer.search(
-                    "", n_results=100, where={"source": str(src_path)}
-                )[0]
-                for doc in old_docs:
-                    if doc.doc_id is not None:
-                        self.indexer.delete_document(doc.doc_id)
-                        logger.debug(f"Deleted old document: {doc.doc_id}")
+                # Use delete_documents with source filter (same pattern as _queue_update)
+                self.indexer.delete_documents({"source": str(src_path)})
+                logger.debug(f"Deleted documents for old path: {src_path}")
 
             # Index the file at its new location if it matches our patterns
             if self._should_process(event.dest_path):
@@ -128,6 +124,9 @@ class IndexEventHandler(FileSystemEventHandler):
                         content = dest_path.read_text()
                         # Index the file
                         self.indexer.index_file(dest_path)
+
+                        # Small delay to ensure index is updated
+                        time.sleep(0.1)
 
                         # Verify the update with content-based search
                         results, _, _ = self.indexer.search(
