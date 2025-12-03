@@ -12,6 +12,7 @@ import chromadb
 from chromadb import Collection
 from chromadb.api import ClientAPI
 from chromadb.config import Settings
+from chromadb.errors import NotFoundError
 
 from .document import Document
 from .document_processor import DocumentProcessor
@@ -191,7 +192,7 @@ class Indexer:
             # Delete if exists
             try:
                 self.client.delete_collection(collection_name)
-            except ValueError:
+            except (ValueError, NotFoundError):
                 pass
 
             # Create new collection
@@ -246,7 +247,7 @@ class Indexer:
         """Reset the collection to a clean state."""
         try:
             self.client.delete_collection(self.collection_name)
-        except ValueError:
+        except (ValueError, NotFoundError):
             pass
         self.collection = self.client.create_collection(
             name=self.collection_name, metadata={"hnsw:space": "cosine"}
