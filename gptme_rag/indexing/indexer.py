@@ -60,8 +60,8 @@ def get_collection(client: ClientAPI, name: str, embedding_function=None) -> Col
     try:
         # Try to get existing collection
         return client.get_collection(name=name, embedding_function=embedding_function)
-    except ValueError:
-        # Create if it doesn't exist
+    except (ValueError, NotFoundError):
+        # Create if it doesn't exist (chromadb 1.x may raise NotFoundError)
         return client.create_collection(
             name=name,
             metadata={"hnsw:space": "cosine"},
@@ -711,7 +711,7 @@ class Indexer:
         results = self.collection.query(
             query_texts=[query],
             n_results=query_n_results,
-            where=search_where,
+            where=search_where or None,  # chromadb 1.x rejects empty dict
         )
 
         if not results["ids"][0]:
