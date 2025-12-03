@@ -70,6 +70,11 @@ class IndexEventHandler(FileSystemEventHandler):
         time.sleep(self._update_delay)
 
         try:
+            # Check if file still exists (might have been moved/deleted during delay)
+            if not path.exists():
+                logger.debug(f"File no longer exists (likely moved/deleted), skipping: {path}")
+                return
+
             # Read file content first to ensure it's readable
             content = path.read_text()
             canonical_path = str(path.resolve())
