@@ -135,6 +135,9 @@ class IndexEventHandler(FileSystemEventHandler):
                         # Index the file
                         self.indexer.index_file(dest_path)
 
+                        # Clear search cache to ensure fresh results for verification
+                        self.indexer.cache.clear()
+
                         # Verify the update with content-based search
                         results, _, _ = self.indexer.search(
                             content[:50]
