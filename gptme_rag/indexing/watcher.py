@@ -102,8 +102,8 @@ class IndexEventHandler(FileSystemEventHandler):
         """Handle file move events."""
         if not event.is_directory:
             logger.info(f"File moved: {event.src_path} -> {event.dest_path}")
-            src_path = Path(event.src_path).absolute()
-            dest_path = Path(event.dest_path).absolute()
+            src_path = Path(event.src_path).resolve()
+            dest_path = Path(event.dest_path).resolve()
 
             # Remove old file from index if it was being tracked
             if self._should_process(event.src_path):
