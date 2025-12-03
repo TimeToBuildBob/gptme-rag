@@ -410,3 +410,4 @@ class FileWatcher:
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Stop watching when exiting context manager."""
         self.stop()
+
